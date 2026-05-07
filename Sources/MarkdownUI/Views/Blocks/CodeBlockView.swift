@@ -3,6 +3,7 @@ import SwiftUI
 struct CodeBlockView: View {
   @Environment(\.theme.codeBlock) private var codeBlock
   @Environment(\.codeSyntaxHighlighter) private var codeSyntaxHighlighter
+  @Environment(\.markdownStreaming) private var streaming
 
   private let fenceInfo: String?
   private let content: String
@@ -23,7 +24,11 @@ struct CodeBlockView: View {
   }
 
   private var label: some View {
-    self.codeSyntaxHighlighter.highlightCode(self.content, language: self.fenceInfo)
+    // 流式中跳过语法高亮，避免每个 token 触发 Splash 全量 tokenize
+    let text: Text = self.streaming
+      ? Text(self.content)
+      : self.codeSyntaxHighlighter.highlightCode(self.content, language: self.fenceInfo)
+    return text
       .textStyleFont()
       .textStyleForegroundColor()
   }
