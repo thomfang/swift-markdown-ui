@@ -112,10 +112,118 @@ extension LatexParser {
         }
     }
     
+    /// 扫描 fenced code block 与 inline code 的字符范围。
+    /// preprocess 时这些范围内的 $/$$/\(/\[ 标记不应被识别为 LaTeX 公式。
+    /// 例如 JS 模板字符串里的 `${var}` 会被错认为 inline math `$...$`。
+    private static func findCodeRanges(in text: String) -> [Range<String.Index>] {
+        var result: [Range<String.Index>] = []
+        let chars = Array(text)
+        let n = chars.count
+        var i = 0
+
+        func indexAt(_ offset: Int) -> String.Index {
+            text.index(text.startIndex, offsetBy: offset)
+        }
+
+        while i < n {
+            let atLineStart = (i == 0) || chars[i - 1] == "\n"
+
+            // 1. Fenced code block: ``` 或 ~~~，至少 3 个，行首允许 0~3 个前导空格
+            if atLineStart {
+                var j = i
+                var leadingSpaces = 0
+                while j < n, chars[j] == " ", leadingSpaces < 3 {
+                    j += 1
+                    leadingSpaces += 1
+                }
+                if j < n, chars[j] == "`" || chars[j] == "~" {
+                    let fenceChar = chars[j]
+                    var fenceLen = 0
+                    while j + fenceLen < n, chars[j + fenceLen] == fenceChar {
+                        fenceLen += 1
+                    }
+                    if fenceLen >= 3 {
+                        let codeStart = j
+                        // 跳过开 fence 所在行
+                        var lineEnd = j + fenceLen
+                        while lineEnd < n, chars[lineEnd] != "\n" { lineEnd += 1 }
+
+                        // 从下一行开始找匹配的关闭 fence（同字符、长度 >= 开 fence）
+                        var k = lineEnd
+                        if k < n { k += 1 }
+                        var codeEnd = n
+                        while k < n {
+                            var ks = k
+                            var sc = 0
+                            while ks < n, chars[ks] == " ", sc < 3 {
+                                ks += 1
+                                sc += 1
+                            }
+                            if ks < n, chars[ks] == fenceChar {
+                                var cl = 0
+                                while ks + cl < n, chars[ks + cl] == fenceChar { cl += 1 }
+                                if cl >= fenceLen {
+                                    codeEnd = ks + cl
+                                    break
+                                }
+                            }
+                            // 跳到下一行
+                            while k < n, chars[k] != "\n" { k += 1 }
+                            if k < n { k += 1 }
+                        }
+
+                        result.append(indexAt(codeStart)..<indexAt(codeEnd))
+                        i = codeEnd
+                        continue
+                    }
+                }
+            }
+
+            // 2. Inline code: 反引号串配对（开/关串长度必须相同）
+            if chars[i] == "`" {
+                var openLen = 0
+                while i + openLen < n, chars[i + openLen] == "`" { openLen += 1 }
+                let openStart = i
+                var k = i + openLen
+                var matched = false
+                while k < n {
+                    if chars[k] == "`" {
+                        var cl = 0
+                        while k + cl < n, chars[k + cl] == "`" { cl += 1 }
+                        if cl == openLen {
+                            result.append(indexAt(openStart)..<indexAt(k + cl))
+                            i = k + cl
+                            matched = true
+                            break
+                        } else {
+                            k += cl
+                        }
+                    } else {
+                        k += 1
+                    }
+                }
+                if !matched {
+                    // 没找到匹配关闭串，按普通文本处理
+                    i += openLen
+                }
+                continue
+            }
+
+            i += 1
+        }
+
+        return result
+    }
+
     /// 预处理公式中的换行符，避免被识别为多个段落
     /// - Parameter text: 需要处理的字符
     static func preprocess(in text: String) -> String {
-        let ranges = findSpecialCharacterRanges(in: text)
+        let codeRanges = findCodeRanges(in: text)
+        // 过滤掉落在 fenced code block / inline code 内的 $/$$/\(/\[ 标记
+        // 否则像 JS 模板字符串 `${var}` 会被错当 inline math 编码
+        let ranges = findSpecialCharacterRanges(in: text).filter { range in
+            !codeRanges.contains(where: { $0.contains(range.lowerBound) })
+        }
         var nextRange: Range<String.Index>?
         var parsers: [(LatexParser, LatexParser)] = []
         for (index, range) in ranges.enumerated() {
