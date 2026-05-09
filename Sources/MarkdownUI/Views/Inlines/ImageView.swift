@@ -44,7 +44,7 @@ struct ImageView: View {
   }
 
   private var url: URL? {
-    URL(string: self.data.source, relativeTo: self.baseURL)
+    URL.markdownImageURL(source: self.data.source, relativeTo: self.baseURL)
   }
 }
 

@@ -109,7 +109,7 @@ struct InlineText: View {
                 if inlineImages[imageInfo.source] == nil {
                     if loadInlineImageTasks[imageInfo.source] == nil {
                         let task = Task {
-                            guard let url = URL(string: imageInfo.source, relativeTo: self.imageBaseURL) else {
+                            guard let url = URL.markdownImageURL(source: imageInfo.source, relativeTo: self.imageBaseURL) else {
                                 return
                             }
                             do {
