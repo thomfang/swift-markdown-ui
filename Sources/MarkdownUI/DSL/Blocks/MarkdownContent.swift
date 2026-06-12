@@ -114,3 +114,17 @@ public struct MarkdownContent: Equatable, MarkdownContentProtocol {
     self.blocks.renderHTML()
   }
 }
+
+extension MarkdownContent {
+  /// 把内容按顶层块逐个拆成独立的 `MarkdownContent`,每个都可单独用 `Markdown(_:)` 渲染。
+  /// 用于流式渲染:把已完成的块与最后一个未定块分开,前者冻结、只重渲后者。
+  public var topLevelBlocks: [MarkdownContent] {
+    self.blocks.map { MarkdownContent(block: $0) }
+  }
+
+  /// 把一组顶层块内容合并成单个 `MarkdownContent`。
+  /// 合并后由同一个 `Markdown(_:)` 渲染,块间距与原文整体渲染保持一致。
+  public init(merging contents: [MarkdownContent]) {
+    self.init(blocks: contents.flatMap(\.blocks))
+  }
+}
