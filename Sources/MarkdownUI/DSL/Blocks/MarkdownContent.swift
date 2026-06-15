@@ -127,4 +127,12 @@ extension MarkdownContent {
   public init(merging contents: [MarkdownContent]) {
     self.init(blocks: contents.flatMap(\.blocks))
   }
+
+  /// 当且仅当本内容是单个 code block(供流式判定末块类型)。
+  /// 注意:cmark 把 fenced 与 indented code block 同归为 `.codeBlock`,且对未闭合围栏也产出 codeBlock;
+  /// "是否 fenced、是否已闭合"无法从此处区分,需由调用方对原文做围栏扫描判断。
+  public var isCodeBlock: Bool {
+    guard self.blocks.count == 1, case .codeBlock = self.blocks[0] else { return false }
+    return true
+  }
 }
