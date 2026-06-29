@@ -43,17 +43,25 @@ struct BlockListView: View {
     
     @Environment(\.multilineTextAlignment) private var textAlignment
     @Environment(\.tightSpacingEnabled) private var tightSpacingEnabled
-    
+    @Environment(\.markdownBlockEquatableDisabled) private var blockEquatableDisabled
+
     @State private var blockMargins: [Int: BlockMargin] = [:]
-    
+
     var body: some View {
         VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
             ForEach(nodeList) { nodeModel in
-                EquatableView(content: BlockNodeView(model: nodeModel))
-                    .onPreferenceChange(BlockMarginsPreference.self) { value in
-                        self.blockMargins[nodeModel.hashValue] = value
+                Group {
+                    if blockEquatableDisabled {
+                        // 关闭 EquatableView:让 .textRenderer 这类环境驱动的重绘(打字机动画)能传到内部 Text。
+                        BlockNodeView(model: nodeModel)
+                    } else {
+                        EquatableView(content: BlockNodeView(model: nodeModel))
                     }
-                    .padding(.top, self.topPaddingLength(for: nodeModel) ?? 16)
+                }
+                .onPreferenceChange(BlockMarginsPreference.self) { value in
+                    self.blockMargins[nodeModel.hashValue] = value
+                }
+                .padding(.top, self.topPaddingLength(for: nodeModel) ?? 16)
             }
         }
     }

@@ -20,6 +20,7 @@ struct InlineText: View {
     @Environment(\.paragraphLineSpacing) private var paragraphLineSpacing
     @Environment(\.theme) private var theme
     @Environment(\.textStyle) private var textStyle
+    @Environment(\.markdownTypewriterRevealed) private var typewriterRevealed
 
     @State private var latexImages: [String: (Image, CGSize)]
     @State private var inlineImages: [String: Image] = [:]
@@ -40,9 +41,9 @@ struct InlineText: View {
                 switch nodeType {
                 case .latexBlock(let content):
                     LatexView(content: content)
-                case .other(let inlines): 
+                case .other(let inlines):
                     TextStyleAttributesReader { attributes in
-                        inlines.renderText(
+                        let text = inlines.renderText(
                             baseURL: self.baseURL,
                             textStyles: .init(
                                 code: self.theme.code,
@@ -57,6 +58,8 @@ struct InlineText: View {
                             attributes: attributes,
                             linkTextBuilder: self.theme.siderLinkTextBuilder
                         )
+                        // 打字机:直接把 TextRenderer 套在叶子 Text 上(套在容器上传不进来)。
+                        self.typewriterRendered(text)
                     }
                     .lineSpacing(paragraphLineSpacing)
                 }
@@ -72,6 +75,16 @@ struct InlineText: View {
         }
     }
     
+    /// 给叶子 Text 套打字机渲染器(仅当环境里设了 revealed 且 iOS 18+);否则原样返回。
+    @ViewBuilder
+    private func typewriterRendered(_ text: Text) -> some View {
+        if #available(iOS 18.0, *), let revealed = self.typewriterRevealed {
+            text.textRenderer(TypewriterTextRenderer(revealed: revealed))
+        } else {
+            text
+        }
+    }
+
     private func loadInlineLatexImages() async {
         let cacheKeys = InlineText.latexCacheImages(inlines: inlines, fontSize: fontSize).keys
         let currentKeys = latexImages.keys
@@ -229,3 +242,36 @@ extension InlineText {
         return latexImages
     }
 }
+
+/// 打字机 TextRenderer:按 revealed(已揭示字数,连续 Double)顺序揭示每个 glyph(RunSlice),
+/// 跨越边界处 1 字宽软淡入;始终占满布局尺寸(只是后段不画),不改变文本高度。
+@available(iOS 18.0, *)
+struct TypewriterTextRenderer: TextRenderer, Animatable {
+    var revealed: Double
+    var animatableData: Double {
+        get { revealed }
+        set { revealed = newValue }
+    }
+
+    /// 尾部渐隐宽度(glyph 数):靠近 revealed 的这一批字做淡入,越宽淡入越明显。
+    private static let fadeWidth: Double = 12
+    /// 渐入时的上浮距离(pt)。
+    private static let rise: Double = 6
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        let slices = layout.flatMap { line in line.flatMap { run in run } }
+        guard !slices.isEmpty else { return }
+        for (index, slice) in slices.enumerated() {
+            // 每个字的淡入进度:在 revealed 之前 fadeWidth 个字范围内从 0→1。
+            let progress = (revealed - Double(index)) / Self.fadeWidth
+            let opacity = min(max(progress, 0), 1)
+            guard opacity > 0 else { continue }
+            var sliceContext = context
+            sliceContext.opacity = opacity
+            // 淡入同时轻微上浮(未完全显示时下移,显示完归位)。
+            sliceContext.translateBy(x: 0, y: (1 - opacity) * Self.rise)
+            sliceContext.draw(slice)
+        }
+    }
+}
+
