@@ -57,9 +57,13 @@ Content: View
         
         let topSpacing = self.blockMargins[element.hashValue]?.top
         let predecessor = self.data[element.index - 1]
+        // 子列表紧贴上一行:当前块是列表(如列表项标题段落后的嵌套子列表)时,忽略前一块的下 margin。
+        // 否则前块(父项标题段落)的下 margin 会经下方 max() 主导「父↔子」间距,使主题里 list 的
+        // 上 margin / relativePadding 失效;此时父↔子间距改由列表自身的上 margin / relativePadding 精确控制。
+        let currentIsList = (element.value as? BlockNode)?.isList ?? false
         let predecessorBottomSpacing =
-        self.tightSpacingEnabled ? 0 : self.blockMargins[predecessor.hashValue]?.bottom
-        
+        (self.tightSpacingEnabled || currentIsList) ? 0 : self.blockMargins[predecessor.hashValue]?.bottom
+
         return [topSpacing, predecessorBottomSpacing]
             .compactMap { $0 }
             .max()

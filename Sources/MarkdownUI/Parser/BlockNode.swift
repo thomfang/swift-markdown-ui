@@ -33,6 +33,16 @@ extension BlockNode {
     guard case .paragraph = self else { return false }
     return true
   }
+
+  /// 是否为列表块(有序 / 无序 / 任务列表)。
+  var isList: Bool {
+    switch self {
+    case .bulletedList, .numberedList, .taskList:
+      return true
+    default:
+      return false
+    }
+  }
 }
 
 struct RawListItem: Hashable {
