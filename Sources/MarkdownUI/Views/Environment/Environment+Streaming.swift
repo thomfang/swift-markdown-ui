@@ -68,3 +68,30 @@ extension EnvironmentValues {
 private struct MarkdownTypewriterRevealedKey: EnvironmentKey {
   static let defaultValue: Double? = nil
 }
+
+extension View {
+  /// Sets the cumulative plain-text glyph offset of this subtree within the
+  /// streaming block, so a single shared `revealed` count (see
+  /// `markdownTypewriterRevealed`) reveals glyphs *sequentially* across several
+  /// `InlineText` leaves (table cells, list items) instead of every leaf
+  /// restarting from glyph 0. Each leaf applies `revealed - offset`.
+  ///
+  /// Containers that lay children out in reading order (e.g. `TableView`) compute
+  /// each child's offset as the character index where that child's text starts in
+  /// the block's full `renderPlainText()` — keeping the offset in the *same*
+  /// coordinate system as `revealed` (no per-cell separator drift).
+  public func markdownTypewriterLeafOffset(_ offset: Int) -> some View {
+    self.environment(\.markdownTypewriterLeafOffset, offset)
+  }
+}
+
+extension EnvironmentValues {
+  var markdownTypewriterLeafOffset: Int {
+    get { self[MarkdownTypewriterLeafOffsetKey.self] }
+    set { self[MarkdownTypewriterLeafOffsetKey.self] = newValue }
+  }
+}
+
+private struct MarkdownTypewriterLeafOffsetKey: EnvironmentKey {
+  static let defaultValue: Int = 0
+}

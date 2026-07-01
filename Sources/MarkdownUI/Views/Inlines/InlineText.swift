@@ -21,6 +21,7 @@ struct InlineText: View {
     @Environment(\.theme) private var theme
     @Environment(\.textStyle) private var textStyle
     @Environment(\.markdownTypewriterRevealed) private var typewriterRevealed
+    @Environment(\.markdownTypewriterLeafOffset) private var typewriterLeafOffset
 
     @State private var latexImages: [String: (Image, CGSize)]
     @State private var inlineImages: [String: Image] = [:]
@@ -36,6 +37,9 @@ struct InlineText: View {
     var body: some View {
         VStack(alignment: .leading, spacing: paragraphLineSpacing) {
             let items = separateLatexFormulaBlock
+            // 同一 InlineText 内可能拆成多个 .other 文本片段(硬换行分隔),每片是独立 Text 叶子。
+            // 给每片再叠加「片内前序文本字数」,使揭示在片间也连续(单 cell/段落多行时不各自从头)。
+            let segmentOffsets = Self.segmentOffsets(items)
             ForEach(0..<items.count, id: \.self) { index in
                 let nodeType = items[index]
                 switch nodeType {
@@ -59,7 +63,7 @@ struct InlineText: View {
                             linkTextBuilder: self.theme.siderLinkTextBuilder
                         )
                         // 打字机:直接把 TextRenderer 套在叶子 Text 上(套在容器上传不进来)。
-                        self.typewriterRendered(text)
+                        self.typewriterRendered(text, extraOffset: segmentOffsets[index])
                     }
                     .lineSpacing(paragraphLineSpacing)
                 }
@@ -74,15 +78,35 @@ struct InlineText: View {
             }
         }
     }
-    
+
     /// 给叶子 Text 套打字机渲染器(仅当环境里设了 revealed 且 iOS 18+);否则原样返回。
+    /// `extraOffset` = 同一 InlineText 内本片段前的文本字数;与环境里的块内基准偏移叠加,
+    /// 用 `revealed - (baseOffset + extraOffset)` 让揭示跨叶子/跨片段连续推进。
     @ViewBuilder
-    private func typewriterRendered(_ text: Text) -> some View {
+    private func typewriterRendered(_ text: Text, extraOffset: Int) -> some View {
         if #available(iOS 18.0, *), let revealed = self.typewriterRevealed {
-            text.textRenderer(TypewriterTextRenderer(revealed: revealed))
+            let local = revealed - Double(self.typewriterLeafOffset + extraOffset)
+            text.textRenderer(TypewriterTextRenderer(revealed: local))
         } else {
             text
         }
+    }
+
+    /// 各片段(items)的「前序文本字数」前缀和,用于片间连续揭示。
+    /// latexBlock 渲染为图片(无 Text glyph),仅按其内容长度占位累加,保持后续片段偏移大致对齐。
+    private static func segmentOffsets(_ items: [InlineText.NodeType]) -> [Int] {
+        var offsets: [Int] = []
+        var running = 0
+        for item in items {
+            offsets.append(running)
+            switch item {
+            case .other(let inlines):
+                running += inlines.renderPlainText().count
+            case .latexBlock(let content):
+                running += content.count
+            }
+        }
+        return offsets
     }
 
     private func loadInlineLatexImages() async {
