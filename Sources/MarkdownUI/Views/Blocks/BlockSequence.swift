@@ -39,13 +39,17 @@ Content: View
     var body: some View {
         VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
             ForEach(self.data, id: \.self) { element in
+                // ★onPreferenceChange 与 padding 必须挂在 ElementView 外层:ElementView 是
+                //  Equatable(只比 element+index),若把依赖 blockMargins @State 的 top padding 包进它
+                //  内部,首帧 blockMargins 为空算出 0 后就被判等缓存,后续 margin 更新读不到 → item 间距
+                //  恒为 0、listItem 的 markdownMargin 失效。对齐 BlockListView:缓存只包块内容,间距在外。
                 ElementView(index: element.index, element: element, content: {
                     self.content(element.index, element.value)
-                        .onPreferenceChange(BlockMarginsPreference.self) { value in
-                            self.blockMargins[element.hashValue] = value
-                        }
-                        .padding(.top, self.topPaddingLength(for: element) ?? 0)
                 })
+                .onPreferenceChange(BlockMarginsPreference.self) { value in
+                    self.blockMargins[element.hashValue] = value
+                }
+                .padding(.top, self.topPaddingLength(for: element) ?? 0)
             }
         }
     }

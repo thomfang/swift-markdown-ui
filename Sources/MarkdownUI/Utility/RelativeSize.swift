@@ -106,9 +106,16 @@ extension View {
   ///
   /// This method behaves like the one in SwiftUI except that it takes a `RelativeSize`
   /// value instead of a `CGFloat` for the spacing amount.
+  ///
+  /// 除了设置 SwiftUI 原生 `.lineSpacing`,还把解析出的点数写入 `paragraphLineSpacing`
+  /// 环境值。否则 `InlineText` 会在最内层用默认 0 的 `paragraphLineSpacing` 调
+  /// `.lineSpacing(0)` 覆盖掉这里设置的外层行距,导致段落/列表项内文本行距恒为 0。
   public func relativeLineSpacing(_ lineSpacing: RelativeSize) -> some View {
     TextStyleAttributesReader { attributes in
-      self.lineSpacing(lineSpacing.points(relativeTo: attributes.fontProperties))
+      let points = lineSpacing.points(relativeTo: attributes.fontProperties)
+      self
+        .lineSpacing(points)
+        .environment(\.paragraphLineSpacing, points)
     }
   }
 }
