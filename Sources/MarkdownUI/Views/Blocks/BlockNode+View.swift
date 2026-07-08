@@ -61,7 +61,11 @@ struct BlockListView: View {
                 .onPreferenceChange(BlockMarginsPreference.self) { value in
                     self.blockMargins[nodeModel.hashValue] = value
                 }
-                .padding(.top, self.topPaddingLength(for: nodeModel) ?? 16)
+                // margin 未知(块首现、preference 尚未上报)时回退 0 而非 16,与 BlockSequence 对齐。
+                // 用 16 会让新块首帧撑出 16pt、下一帧回填真实 margin(多数 < 16)→ 内容「向上跳」;
+                // 用 0 则新块首帧贴紧、下一帧只向下展开到真实 margin,与流式增长方向一致,消除向上跳。
+                // 最终布局不变(margin 上报后即为真实值);仅影响首帧那一瞬的过渡方向。
+                .padding(.top, self.topPaddingLength(for: nodeModel) ?? 0)
             }
         }
     }
