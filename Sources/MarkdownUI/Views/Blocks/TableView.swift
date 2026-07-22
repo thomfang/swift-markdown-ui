@@ -4,6 +4,8 @@ import SwiftUI
 struct TableView: View {
   @Environment(\.theme.table) private var table
   @Environment(\.tableBorderStyle.strokeStyle.lineWidth) private var borderWidth
+  // 多块窗口里表格可能不在窗口起点:叠加 BlockListView 传下的块起始偏移,cell 偏移才落在整段坐标。
+  @Environment(\.markdownTypewriterLeafOffset) private var baseLeafOffset
 
   private let columnAlignments: [RawTableColumnAlignment]
   private let rows: [RawTableRow]
@@ -40,7 +42,7 @@ struct TableView: View {
           ForEach(0..<self.columnCount, id: \.self) { column in
             TableCell(row: row, column: column, cell: self.rows[row].cells[column])
               .gridColumnAlignment(.init(self.columnAlignments[column]))
-              .markdownTypewriterLeafOffset(Self.offsetValue(offsets, row: row, column: column))
+              .markdownTypewriterLeafOffset(self.baseLeafOffset + Self.offsetValue(offsets, row: row, column: column))
           }
         }
       }

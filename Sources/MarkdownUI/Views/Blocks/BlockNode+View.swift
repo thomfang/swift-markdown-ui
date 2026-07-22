@@ -44,11 +44,17 @@ struct BlockListView: View {
     @Environment(\.multilineTextAlignment) private var textAlignment
     @Environment(\.tightSpacingEnabled) private var tightSpacingEnabled
     @Environment(\.markdownBlockEquatableDisabled) private var blockEquatableDisabled
+    @Environment(\.markdownTypewriterRevealed) private var typewriterRevealed
+    @Environment(\.markdownTypewriterLeafOffset) private var baseLeafOffset
 
     @State private var blockMargins: [Int: BlockMargin] = [:]
+    // 打字机顺序揭示:激活时给每个顶层块设「块起始 glyph 偏移」,使多块共用一个 revealed 时按阅读顺序
+    // 逐块揭示(否则各块都从 revealed-0 起 → 同时揭示)。按 nodes 记忆化,仅内容变化才重算,逐帧命中缓存。
+    @State private var offsetMemo = BlockTypewriterOffsetMemo()
 
     var body: some View {
-        VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
+        let leafOffsets = self.resolvedLeafOffsets()
+        return VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
             ForEach(nodeList) { nodeModel in
                 Group {
                     if blockEquatableDisabled {
@@ -58,6 +64,8 @@ struct BlockListView: View {
                         EquatableView(content: BlockNodeView(model: nodeModel))
                     }
                 }
+                // 顺序揭示:把本块起始偏移叠加到继承基准,传给块内 InlineText(revealed - leafOffset)。
+                .markdownTypewriterLeafOffset(self.leafOffset(leafOffsets, index: nodeModel.index))
                 .onPreferenceChange(BlockMarginsPreference.self) { value in
                     self.blockMargins[nodeModel.hashValue] = value
                 }
@@ -68,6 +76,38 @@ struct BlockListView: View {
                 .padding(.top, self.topPaddingLength(for: nodeModel) ?? 0)
             }
         }
+    }
+
+    /// 揭示激活时返回每个顶层块的起始 glyph 偏移(与 app 侧 revealed = 整段 renderPlainText().count 同坐标);
+    /// 未激活(revealed==nil)返回空 → leafOffset 保持继承基准(零副作用、零 cmark 开销)。
+    private func resolvedLeafOffsets() -> [Int] {
+        guard self.typewriterRevealed != nil else { return [] }
+        let nodes = self.nodeList.map(\.node)
+        if self.offsetMemo.nodes != nodes {
+            self.offsetMemo.nodes = nodes
+            self.offsetMemo.offsets = Self.computeLeafOffsets(nodes)
+        }
+        return self.offsetMemo.offsets
+    }
+
+    /// offset_i = 整段 plaintext 长度 − blocks[i...] 的 plaintext 长度 = 块 i 在整段中的起始字符索引。
+    /// 用后缀差而非前缀和:精确落在整段坐标(块间分隔符归入前缀),避免逐块累积漂移。
+    private static func computeLeafOffsets(_ nodes: [BlockNode]) -> [Int] {
+        guard !nodes.isEmpty else { return [] }
+        let whole = nodes.renderPlainText().count
+        var offsets: [Int] = []
+        offsets.reserveCapacity(nodes.count)
+        for i in nodes.indices {
+            let suffix = Array(nodes[i...]).renderPlainText().count
+            offsets.append(whole - suffix)
+        }
+        return offsets
+    }
+
+    /// 激活时叠加到继承的 baseLeafOffset(支持嵌套);未激活或越界回退 baseLeafOffset(无副作用)。
+    private func leafOffset(_ offsets: [Int], index: Int) -> Int {
+        guard index < offsets.count else { return self.baseLeafOffset }
+        return self.baseLeafOffset + offsets[index]
     }
     
     private func topPaddingLength(for nodeModel: BlockNodeModel) -> CGFloat? {
@@ -107,6 +147,12 @@ class BlockNodeModel: ObservableObject, Hashable, Identifiable {
     var id: Int {
         index
     }
+}
+
+/// BlockListView 打字机顺序揭示 offset 的记忆化(引用型:body 内按 nodes 变化同步重算,不触发视图失效)。
+private final class BlockTypewriterOffsetMemo {
+    var nodes: [BlockNode]?
+    var offsets: [Int] = []
 }
 
 struct BlockNodeView: View {
