@@ -69,7 +69,7 @@ extension BlockNode {
             var literal = unsafeNode.literal ?? ""
             literal = LatexParser.removeNewLinePlaceholder(text: literal)
             if literal.isEmpty == false {
-                self = .codeBlock(fenceInfo:  unsafeNode.fenceInfo, content: literal)
+                self = .codeBlock(fenceInfo: unsafeNode.fenceInfo, content: literal, sourceLine: Int(cmark_node_get_start_line(unsafeNode)))
             } else {
                 debugPrint("codeBlock: \(unsafeNode.fenceInfo)")
                 return nil
@@ -373,7 +373,7 @@ extension UnsafeNode {
             cmark_node_set_list_tight(node, isTight ? 1 : 0)
             items.compactMap(UnsafeNode.make).forEach { cmark_node_append_child(node, $0) }
             return node
-        case .codeBlock(let fenceInfo, let content):
+        case .codeBlock(let fenceInfo, let content, _):
             guard let node = cmark_node_new(CMARK_NODE_CODE_BLOCK) else { return nil }
             if let fenceInfo {
                 cmark_node_set_fence_info(node, fenceInfo)

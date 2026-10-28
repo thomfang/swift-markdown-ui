@@ -17,6 +17,9 @@ public struct CodeBlockConfiguration {
   /// The code block language, if present.
   public let language: String?
 
+  /// One-based start line in the parsed document. Preserved when content is split or merged.
+  public let sourceLine: Int?
+
   /// The code block contents.
   public let content: String
 

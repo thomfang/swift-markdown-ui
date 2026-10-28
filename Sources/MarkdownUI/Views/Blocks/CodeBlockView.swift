@@ -7,8 +7,10 @@ struct CodeBlockView: View {
 
   private let fenceInfo: String?
   private let content: String
+  private let sourceLine: Int?
 
-  init(fenceInfo: String?, content: String) {
+  init(fenceInfo: String?, content: String, sourceLine: Int? = nil) {
+    self.sourceLine = sourceLine
     self.fenceInfo = fenceInfo
     self.content = content.hasSuffix("\n") ? String(content.dropLast()) : content
   }
@@ -17,6 +19,7 @@ struct CodeBlockView: View {
     self.codeBlock.makeBody(
       configuration: .init(
         language: self.fenceInfo,
+        sourceLine: self.sourceLine,
         content: self.content,
         label: .init(self.label)
       )

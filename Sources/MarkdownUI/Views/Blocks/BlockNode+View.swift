@@ -12,8 +12,8 @@ import SwiftUI
                  NumberedListView(isTight: isTight, start: start, items: items)
              case .taskList(let isTight, let items):
                  TaskListView(isTight: isTight, items: items)
-             case .codeBlock(let fenceInfo, let content):
-                 CodeBlockView(fenceInfo: fenceInfo, content: content)
+             case .codeBlock(let fenceInfo, let content, let sourceLine):
+                 CodeBlockView(fenceInfo: fenceInfo, content: content, sourceLine: sourceLine)
              case .htmlBlock(let content):
                  ParagraphView(content: content)
              case .paragraph(let content):
@@ -166,5 +166,6 @@ struct BlockNodeView: View {
 extension BlockNodeView: Equatable {
     static func == (lhs: BlockNodeView, rhs: BlockNodeView) -> Bool {
         return lhs.model.node == rhs.model.node
+          && lhs.model.node.codeBlockSourceLines == rhs.model.node.codeBlockSourceLines
     }
 }
